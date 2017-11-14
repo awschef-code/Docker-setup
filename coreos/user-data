@@ -1,0 +1,65 @@
+#cloud-config
+
+---
+write_files:
+- path: /home/core/.dockercfg
+  permissions: '0600'
+  owner: core
+  content: |
+    {
+      "https://index.docker.io/v1/": {
+        "auth": "YWdpbGl0eXBsYXRmb3JtOnMzcnZpY2VtM3No"
+      }
+    }
+coreos:
+  etcd:
+    addr: $public_ipv4:4001
+    peer-addr: $public_ipv4:7001
+    discovery: https://discovery.etcd.io/ddd5670e9cf0c4b670019eb6f6d1b0e9
+  etcd2:
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    discovery: https://discovery.etcd.io/ddd5670e9cf0c4b670019eb6f6d1b0e9
+  fleet:
+    public-ip: $public_ipv4
+  flannel:
+    interface: $public_ipv4
+  units:
+  - name: etcd.service
+    command: start
+  - name: fleet.service
+    command: start
+  - name: docker-tcp.socket
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=Docker Socket for the API
+
+      [Socket]
+      ListenStream=2375
+      Service=docker.service
+      BindIPv6Only=both
+
+      [Install]
+      WantedBy=sockets.target
+  - name: agility.service
+    command: start
+    enable: false
+    content: |
+      [Unit]
+        Description=Agility Install
+        Requires=docker.service
+        Requires=etcd.service
+        Requires=fleet.service
+        After=docker.service
+        After=etcd.service
+        After=fleet.service
+
+      [Service]
+        Type=oneshot
+        User=core
+        TimeoutStartSec=0
+        ExecStart=/usr/bin/docker run -e CLUSTER_NODES=3 -e AGILITY_INSTANCES=1 --name agility -v=/:/coreos agility/coreos

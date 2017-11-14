@@ -1,0 +1,175 @@
+<?xml version="1.0"?>
+
+<project name="images" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
+
+    <property name="version" value="1.0.0"/>
+    <property name="dir.dist" value="dist"/>
+    <condition property="isMacOS">
+       <os family="mac" />
+    </condition>
+
+    <macrodef name="prepare-image">
+       <attribute name="image-name"/>
+       <attribute name="tag"/>
+       <attribute name="image-file"/>
+       <attribute name="revision"/>
+       <sequential>
+          <echo message="Writing ${dir.dist}/@{image-file}-@{revision}.tar"/>
+          <exec executable="docker" failonerror="true">
+             <arg value="save"/>
+             <arg value="-o"/>
+             <arg value="${dir.dist}/@{image-file}-@{revision}.tar"/>
+             <arg value="@{image-name}:@{tag}"/>
+          </exec>
+          <gzip src="${dir.dist}/@{image-file}-@{revision}.tar"
+                destfile="${dir.dist}/@{image-file}-@{revision}.tar.gz"/>
+              <delete file="${dir.dist}/@{image-file}-@{revision}.tar"/>
+          <echo file="ivy.xml" append="true">&lt;artifact name="@{image-file}-@{revision}" type="tar.gz" ext="tar.gz"/&gt;
+          </echo>
+       </sequential>
+    </macrodef>
+
+    <target name="build">
+      <echo message="docker images pre-build"/>
+      <exec executable="docker">
+          <arg value="images"/>
+      </exec>
+      <ant dir="influxdb" target="build"/>
+      <ant dir="chronograf" target="build"/>
+      <ant dir="guacd" target="build"/>
+      <ant dir="guacamole" target="build"/>
+      <ant dir="rabbitmq" target="build"/>
+      <ant dir="mysql-5.7" target="build"/>
+      <ant dir="java8" target="build"/>
+      <ant dir="zookeeper" target="build"/>
+      <ant dir="karaf-4.0.5" target="build"/>
+      <ant dir="etcd" target="build"/>
+      <echo message="docker images post-build"/>
+      <exec executable="docker">
+          <arg value="images"/>
+      </exec>
+      <antcall target="docker-info"/>
+    </target>
+
+    <target name="push">
+      <ant dir="influxdb" target="push"/>
+      <ant dir="chronograf" target="push"/>
+      <ant dir="guacd" target="push"/>
+      <ant dir="guacamole" target="push"/>
+      <ant dir="rabbitmq" target="push"/>
+      <ant dir="mysql-5.7" target="push"/>
+      <ant dir="java8" target="push"/>
+      <ant dir="karaf-4.0.5" target="push"/>
+      <ant dir="etcd" target="push"/>
+      <ant dir="zookeeper" target="push"/>
+    </target>
+
+    <target name="git-info" unless="git.summary">
+      <exec executable="bash" outputproperty="git.revision">
+         <arg value="-c" />
+         <arg value="git rev-list HEAD | wc -l | sed 's/^ *//'" />
+      </exec>
+      <exec executable="bash" outputproperty="git.commit">
+         <arg value="-c" />
+         <arg value="git log -n1 --pretty=format:%h HEAD" />
+      </exec>
+      <property name="git.summary" value="${git.revision}.${git.commit}"/>
+    </target>
+
+    <target name="ivy-publish" depends="git-info">
+      <ivy:settings file="../ivysettings.xml"/>
+      <mkdir dir="${dir.dist}"/>
+      <echo file="ivy.xml">&lt;ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra"&gt;
+  &lt;info organisation="com.servicemesh" module="agility-docker"/&gt;
+  &lt;publications&gt;
+      </echo>
+      <property name="repo.revision" value="${version}.r${git.summary}"/>
+
+      <prepare-image image-name="agility/influxdb" tag="latest"
+                     image-file="agility-docker-influxdb"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/chronograf" tag="latest"
+                     image-file="agility-docker-chronograf"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/guacd" tag="latest"
+                     image-file="agility-docker-guacd"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/guacamole" tag="latest"
+                     image-file="agility-docker-guacamole"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/rabbitmq" tag="latest"
+                     image-file="agility-docker-rabbitmq"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/java" tag="8"
+                     image-file="agility-docker-java8"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/karaf" tag="4.0.5"
+                     image-file="agility-docker-karaf-4.0.5"
+                     revision="${repo.revision}"/>
+      <prepare-image image-name="agility/zookeeper" tag="latest"
+                     image-file="agility-docker-zookeeper"
+                     revision="${repo.revision}"/>
+
+      <echo file="ivy.xml" append="true">&lt;/publications&gt;
+&lt;/ivy-module&gt;
+      </echo>
+      <ivy:resolve file="ivy.xml" />
+      <ivy:publish module="agility-docker" resolver="local-servicemesh"
+                   status="integration" update="true" overwrite="true"
+                   pubrevision="${repo.revision}">
+         <artifacts pattern="${dir.dist}/[artifact].[ext]" />
+      </ivy:publish>
+    </target>
+
+    <target name="deploy">
+      <ant dir="tls" target="deploy" />
+      <exec executable="docker-compose">
+         <arg value="up"/>
+         <arg value="-d"/>
+      </exec>
+    </target>
+
+    <target name="clean" depends="stop-running-containers,remove-existing-containers,garbage-collect-dangling-images">
+      <delete failonerror="false" file="ivy.xml"/>
+      <delete failonerror="false" dir="${dir.dist}"/>
+      <ant dir="influxdb" target="clean"/>
+      <ant dir="chronograf" target="clean"/>
+      <ant dir="guacd" target="clean"/>
+      <ant dir="guacamole" target="clean"/>
+      <ant dir="rabbitmq" target="clean"/>
+      <ant dir="java8" target="clean"/>
+      <ant dir="zookeeper" target="clean"/>
+      <ant dir="karaf-4.0.5" target="clean"/>
+      <ant dir="etcd" target="clean"/>
+      <ant dir="registrator" target="clean"/>
+      <antcall target="docker-info"/>
+    </target>
+
+    <target name="stop-running-containers">
+      <exec executable="bash">
+         <arg value="-c" />
+         <arg value="docker stop $(docker ps -a -q)"/>
+      </exec>
+    </target>
+
+    <target name="remove-existing-containers">
+      <exec executable="bash">
+         <arg value="-c" />
+         <arg value="docker rm -v $(docker ps -q -a)"/>
+      </exec>
+    </target>
+
+    <target name="garbage-collect-dangling-images">
+      <exec executable="bash">
+         <arg value="-c" />
+         <arg value="docker rmi $(docker images -f 'dangling=true' -q)"/>
+      </exec>
+    </target>
+
+    <target name="docker-info">
+      <exec executable="docker">
+         <arg value="info"/>
+      </exec>
+    </target>
+
+</project>

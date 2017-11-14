@@ -1,0 +1,33 @@
+<?xml version="1.0" standalone="yes"?>
+<project name="agility-docker" basedir="." default="help">
+
+   <target name="build" description="builds publishable artifacts">
+      <ant dir="images" target="build"/>
+   </target>
+
+   <target name="ivy-publish"
+           description="publishes distribution to ivy artifact repository">
+      <ant dir="images" target="ivy-publish"/>
+   </target>
+
+   <!-- =====================================================================
+        Cleanup
+        ================================================================= -->
+   <target name="clean" description="Deletes all generated artifacts.">
+      <ant dir="images" target="clean"/>
+   </target>
+
+   <!-- =====================================================================
+        CI and help
+        ================================================================= -->
+   <target name="ci" description="Continuous Integration target">
+      <antcall target="clean"/>
+      <antcall target="build"/>
+      <antcall target="ivy-publish"/>
+   </target>
+
+   <target name="help" description="Help">
+      <echo message="Agility Docker:"/>
+      <echo message="ci - Performs a CI build."/>
+   </target>
+</project>

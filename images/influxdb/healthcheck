@@ -1,0 +1,13 @@
+#!/bin/bash
+
+http_status=`curl -s -o /dev/null -I -w "%{http_code}" http://localhost:8086/ping`
+cmd_status=$?
+
+echo "INFO: http_status = $http_status  cmd_status = $cmd_status"
+
+if [[ $cmd_status -eq 0 && $http_status -eq 204 ]]
+then
+   exit 0
+fi
+
+exit 1

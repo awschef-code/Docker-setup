@@ -1,0 +1,66 @@
+#!/bin/bash
+
+skipCheckFile="/tmp/skipRealHealthCheck"
+statusCheckFile="/tmp/statusCheck"
+nodesExpectedFile="/tmp/nodesExpected"
+nodesActualFile="/tmp/nodesActual"
+
+function getNodesUsingDNS() {
+	getent hosts tasks.zookeeper | awk '{ print $1 }' | sort -n -t "." -k4 > $nodesExpectedFile
+}
+
+function getNodesFRomZKConfig() {
+  	/opt/zookeeper/bin/zkCli.sh get /zookeeper/config | grep "server\." | sed -rn 's/.*=([0-9\.]+).*/\1/p' | sort -n -t "." -k4 > $nodesActualFile
+}
+
+function validateIfAllZookeperNodesAreInThisCluster() {
+  getNodesUsingDNS
+  getNodesFRomZKConfig
+  diff $nodesExpectedFile $nodesActualFile 1>/dev/null 2>&1
+  return $?
+}
+
+function printExpectedAndActualFiles() {
+  echo ""
+  echo "Expected Nodes: "; echo "--------------"; cat $nodesExpectedFile
+  echo ""
+  echo "Actual Nodes: "; echo "------------"; cat $nodesActualFile
+}
+
+# =============== MAIN CODE ===========================
+if [ -f $skipCheckFile ]
+then
+  echo "Setting up Cluster"
+  exit 0
+else
+  nodesList=(`getent hosts tasks.zookeeper | awk '{ print $1 }'`)
+  nodeCount=${#nodesList[@]}
+  zkStatusPattern="Mode: Follower|Mode: Leader"
+  if [ $nodeCount -eq 1 ]
+  then
+    #For single node zookeeper-3.4.8 runs in "stansalone" mode. incase if we switch back to 3.4.8, healthcheck should work.
+    zkStatusPattern="$zkStatusPattern|Mode: standalone"
+  fi
+  /opt/zookeeper/bin/zkServer.sh status &> $statusCheckFile
+  status=`egrep -i "$zkStatusPattern" $statusCheckFile`
+  if [[ -z $status ]]
+  then
+    echo "`grep -v "^ZooKeeper" $statusCheckFile`"
+    exit 1
+  else
+    validateIfAllZookeperNodesAreInThisCluster
+    if [ $? -eq 0 ]
+    then
+      echo "$status"
+      echo "Found all expected nodes in Zookeeper cluster"
+      printExpectedAndActualFiles
+      exit 0
+    else
+      echo "$status"
+      echo "ERROR: Couldn't find all expected nodes in zookeeper cluster."
+      printExpectedAndActualFiles
+      exit 1
+    fi
+
+  fi
+fi

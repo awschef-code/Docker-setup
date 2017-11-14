@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+
+<project name="tls" basedir=".">
+
+   <target name="deploy">
+        <exec executable="/bin/bash">
+            <arg value="-c" />
+            <arg value="./create.sh" />
+        </exec>
+   </target>
+
+   <target name="clean">
+        <delete dir="." includes="*.pem,*.csr,*.crt,*.srl,*.cnf"/>
+   </target>
+
+</project>

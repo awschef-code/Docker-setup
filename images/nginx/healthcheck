@@ -1,0 +1,46 @@
+#!/bin/bash
+
+masterProc="nginx: master process"
+workerProc="nginx: worker process"
+agilityXURL="https://localhost:8443/agility/x/index.html"
+agility="Agility Platform"
+
+function isProcessRunning() {
+  local procName="$1"
+
+  return `ps wuax | grep -v "grep $procName" | grep "$procName" > /dev/null; echo $?`
+}
+
+########################### Main Code ###########################
+
+isProcessRunning "$masterProc"
+if [ $? -ne 0 ]
+then
+  echo "nginx master process is not running."
+  exit 1 
+fi
+
+isProcessRunning "$workerProc"
+if [ $? -ne 0 ]
+then
+  echo "nginx worker process is not running."
+  exit 1 
+fi
+
+#get valid curl status
+curlStatus=$(curl -o -i -s -w "%{http_code}" -X GET "$agilityXURL" -k)
+if [ $curlStatus -ne 200 ]
+  then
+  echo "Curl to $agilityXURL returned with $curlStatus"
+  exit 1
+fi
+
+curlOutput="`curl -X GET "$agilityXURL" -k`"
+if ! echo "$curlOutput" | grep -q "$agility"
+then
+    echo "occurence of '$agility' not found in $agilityXURL"
+    exit 1
+fi
+
+#if all valid values then show status as healthy
+exit 0

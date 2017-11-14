@@ -1,0 +1,21 @@
+[Unit]
+Description=MySQL Fabric
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+After=mysql@%i.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill fabric-%i
+ExecStartPre=-/usr/bin/docker rm fabric-%i
+ExecStartPre=/bin/sh -c "until (umask 222; echo fabric >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/fabric; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name fabric-%i -e DOCKER_IP=${COREOS_PRIVATE_IPV4} -e MYSQL_NODES=%i --publish=32274:32274 --publish=32275:32275 --link=mysql-%i:mysql dockerhub.servicemesh.com/agility/fabric
+ExecStop=/usr/bin/docker stop fabric-%i
+Restart=on-failure
+
+[X-Fleet]
+MachineOf=mysql@%i.service

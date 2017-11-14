@@ -1,0 +1,19 @@
+#!/bin/bash 
+
+function isProcessRunning() {
+
+  local procName="$1"
+
+  return `ps wuax | grep -v "grep $procName" | grep "$procName" > /dev/null; echo $?`
+}
+
+########################### Main Code ###########################
+
+isProcessRunning "apache2"
+if [ $? -ne 0 ]
+then
+  echo "Adapters backup process is not running."
+  exit 1
+else
+  exit 0
+fi

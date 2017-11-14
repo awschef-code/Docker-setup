@@ -1,0 +1,9 @@
+zookeeper:
+  container_name: zookeeper
+  build: .
+  ports:
+  - 2181:2181
+  - 60934:60934
+  volumes:
+  - ../tls:/var/tls
+  restart: always

@@ -1,0 +1,16 @@
+[Unit]
+Description=Zookeeper
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill zookeeper
+ExecStartPre=-/usr/bin/docker rm zookeeper
+ExecStartPre=/bin/sh -c "until (umask 222; echo zookeeper >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/zookeeper; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name zookeeper --publish=2181:2181 dockerhub.servicemesh.com/agility/zookeeper
+ExecStop=/usr/bin/docker stop zookeeper
+Restart=on-failure

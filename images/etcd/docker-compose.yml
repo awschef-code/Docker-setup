@@ -1,0 +1,24 @@
+etcd:
+  container_name: etcd
+  image: "quay.io/coreos/etcd"
+  net: host
+  volumes:
+  - ../tls:/var/tls
+  ports:
+  - 2379:2379
+  - 2380:2380
+  - 4001:4001
+  - 7001:7001
+  restart: always
+  command: >
+     --listen-peer-urls https://0.0.0.0:2380,https://0.0.0.0:7001 
+     --listen-client-urls http://127.0.0.1:2379,http://127.0.0.1:4001,https://${DOCKER_IP}:2379,https://${DOCKER_IP}:4001 
+     --advertise-client-urls https://${DOCKER_IP}:2379 
+     --initial-advertise-peer-urls https://${DOCKER_IP}:2380 
+     --initial-cluster-token agility-etcd-cluster 
+     --initial-cluster default=https://${DOCKER_IP}:2380 
+     --initial-cluster-state new 
+     --cert-file /var/tls/server.crt 
+     --key-file /var/tls/server.pem 
+     --peer-cert-file /var/tls/server.crt 
+     --peer-key-file /var/tls/server.pem

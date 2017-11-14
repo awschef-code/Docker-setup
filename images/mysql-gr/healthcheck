@@ -1,0 +1,30 @@
+#!/bin/bash
+
+EXEMPT_SECS=90
+TIME_FILE=/tmp/ready
+
+if [ -e "$TIME_FILE" ]
+then
+   START_SECS=`stat -c %Y $TIME_FILE`
+   NOW_SECS=`date +%s`
+
+   if (( NOW_SECS < (START_SECS+EXEMPT_SECS) ))
+   then
+       echo "Entry point has completed.  Waiting to be joined to cluster."
+       exit 0
+   else   
+        hostname=$(mysql -u${MYSQL_USER:-admin} -p${MYSQL_PASSWORD:-x0cloud} -e "show variables like 'report_host'\G" 2>/dev/null | tail -n 1 | sed -e"s/.*Value: //")
+        state=$(mysql -u${MYSQL_USER:-admin} -p${MYSQL_PASSWORD:-x0cloud} -e "select member_state from performance_schema.replication_group_members where member_host='${hostname}'\G" 2>/dev/null | tail -n 1 | sed -e"s/.*member_state: //")
+        if [ ! "$state" == "ONLINE" ] 
+        then
+            echo "This mysql node $hostname has not yet joined the cluster."
+            exit 1
+        fi
+
+        echo "This mysql node $report_host is online in the cluster."
+        exit 0
+   fi
+else
+   echo "Waiting for entrypoint to finish."
+   exit 1
+fi

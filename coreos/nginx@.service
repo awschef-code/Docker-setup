@@ -1,0 +1,20 @@
+[Unit]
+Description=Nginx Reverse Proxy
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill nginx
+ExecStartPre=-/usr/bin/docker rm nginx
+ExecStartPre=/bin/sh -c "until (umask 222; echo nginx >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/nginx; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name nginx -e "ETCD_PORT_4001_TCP_ADDR=${COREOS_PRIVATE_IPV4}" -e ETCD_PORT_4001_TCP_PORT=4001 --publish=80:80 --publish=443:443 dockerhub.servicemesh.com/agility/nginx
+ExecStop=/usr/bin/docker stop nginx
+Restart=on-failure
+
+[X-Fleet]
+Conflicts=nginx@*.service

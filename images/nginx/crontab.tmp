@@ -1,0 +1,2 @@
+* * * * * /usr/local/nginx/nginx-reload.sh
+58 11 * * * /usr/sbin/logrotate -f /etc/logrotate.d/nginx

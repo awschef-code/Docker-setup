@@ -1,2 +1,2 @@
-# Docker-setup
-Docker-setup of Agility Platform
+# docker
+Docker images used for the deployment of the Agility Platform.

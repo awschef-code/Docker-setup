@@ -1,0 +1,84 @@
+#!/bin/bash
+
+function isTelegrafRunning() {
+    telegraf_pid=`ps -ef |grep telegraf | grep -v grep | grep -v defunct|tr -s " " |cut -d' ' -f8,2 |grep telegraf$| cut -d' ' -f1`
+}
+
+ERRFILE=/tmp/healthcheck.err
+TEST_URL=https://localhost:8443/agility/api/platform/status
+
+rm -f "$ERRFILE"
+status=$(curl  -S -s -k "$TEST_URL" 2>"$ERRFILE")
+rc=$?
+
+echo "rc=$rc and status=$status"
+if [ "$rc" != "0" ]
+then
+    echo "ERROR: Attempt to call $TEST_URL failed."
+    if  [ -e "$ERRFILE" ]
+    then
+        echo "ERROR:" `cat "$ERRFILE"`
+    fi
+    exit 1
+fi
+
+if [ -z "$status" ]
+then
+    echo "ERROR: status returned empty value"
+    exit 1
+fi
+
+if [ "$status" = "started" ]
+then
+    UDP_MSG="HEALTH-CHECK"
+
+    # make sure the collectd listener is listening on port 8649
+    collectd=`echo $UDP_MSG | nc -v -u -w 3 localhost 8649 2>&1 |grep open`
+
+    if [[ -z "$collectd" ]]
+    then
+        echo "ERROR: the collectd port 8649 is not listening"
+        exit 1
+    fi
+
+    # make sure the telegraf listener is listening on port 8099
+    telegraf=`echo $UDP_MSG | nc -v -u -w 3 localhost 8099 2>&1 |grep open`
+
+    if [[ -z "$telegraf" ]]
+    then
+        echo "ERROR: the telegraf port 8099 is not listening"
+        exit 1
+    fi
+
+    # make sure the collectd listener bundle is running
+    collectdBundle=`/opt/agility-platform/bin/client list | grep "Agility - Collectd Adapter" | grep Active | wc -l`
+
+    if [[ $collectdBundle -ne 1 ]]
+    then
+        echo "ERROR: the collectd listener bundle is not Active"
+        exit 1
+    fi
+
+    # make sure the telegraf listener bundle is running
+    telegrafBundle=`/opt/agility-platform/bin/client list | grep "Agility - Telegraf Adapter" | grep Active | wc -l`
+
+    if [[ $telegrafBundle -ne 1 ]]
+    then
+        echo "ERROR: the telegraf listener bundle is not Active"
+        exit 1
+    fi
+
+    # make sure telegraf is running
+    telegraf_pid=''
+    isTelegrafRunning
+    if [[ -z "$telegraf_pid" ]]
+    then
+        echo "ERROR: telegraf is not running"
+        exit 1
+    fi
+
+    exit 0
+else
+    echo "INFO:  status value is $status"
+    exit 1
+fi

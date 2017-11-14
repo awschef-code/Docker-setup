@@ -1,0 +1,293 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Agility Platform on EC2: http://www.csc.com/cloud/offerings/53410/104965-csc_agility_platform_cloud_management",
+  "Mappings" : {
+      "RegionMap" : {
+
+          "eu-central-1" : {
+              "AMI" : "ami-eae5ddf7"
+          },
+
+          "ap-northeast-1" : {
+              "AMI" : "ami-1a6fca1a"
+          },
+
+          "us-gov-west-1" : {
+              "AMI" : "ami-e99fffca"
+          },
+
+          "sa-east-1" : {
+              "AMI" : "ami-b1cb49ac"
+          },
+
+          "ap-southeast-2" : {
+              "AMI" : "ami-23641e19"
+          },
+
+          "ap-southeast-1" : {
+              "AMI" : "ami-da030788"
+          },
+
+          "us-east-1" : {
+              "AMI" : "ami-93ea17f8"
+          },
+
+          "us-west-2" : {
+              "AMI" : "ami-5d4d486d"
+          },
+
+          "us-west-1" : {
+              "AMI" : "ami-c967938d"
+          },
+
+          "eu-west-1" : {
+              "AMI" : "ami-5f2f5528"
+          }
+
+      }
+  },
+  "Parameters": {
+    "InstanceType" : {
+      "Description" : "EC2 HVM instance type (m3.xlarge, etc).",
+      "Type" : "String",
+      "Default" : "m4.large",
+      "AllowedValues" : ["m4.large","m4.xlarge","m4.2xlarge"],
+      "ConstraintDescription" : "Must be a valid EC2 PV instance type."
+    },
+    "AgilityInstances": {
+      "Default": "2",
+      "MinValue": "1",
+      "MaxValue": "9",
+      "Description": "Number of agility instances in cluster (1-9).",
+      "Type": "Number"
+    },
+    "ClusterNodes": {
+      "Default": "3",
+      "MinValue": "3",
+      "MaxValue": "9",
+      "Description": "Number of nodes in cluster (3-9).",
+      "Type": "Number"
+    },
+    "DiscoveryURL": {
+      "Description": "An unique etcd cluster discovery URL. Grab a new token from https://discovery.etcd.io/new",
+      "Type": "String"
+    },
+    "AdvertisedIPAddress": {
+      "Description": "Use 'private' if your etcd cluster is within one region or 'public' if it spans regions or cloud providers.",
+      "Default": "private",
+      "AllowedValues": ["private", "public"],
+      "Type": "String"
+    },
+    "AllowSSHFrom": {
+      "Description": "The net block (CIDR) that SSH is available to.",
+      "Default": "0.0.0.0/0",
+      "Type": "String"
+    },
+    "AllowHTTPFrom": {
+      "Description": "The net block (CIDR) that HTTP/HTTPS is available to.",
+      "Default": "0.0.0.0/0",
+      "Type": "String"
+    },
+    "KeyPair" : {
+      "Description" : "name of an existing EC2 Key Pair to allow SSH access to the instance.",
+      "Type" : "AWS::EC2::KeyPair::KeyName"
+    },
+    "Certificate" : {
+      "Description" : "IAM SSL certificate identifier.",
+      "Type" : "String"
+    },
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC::Id",
+      "Description" : "VPC to deploy into"
+    },
+    "Subnets" : {
+      "Type" : "List<AWS::EC2::Subnet::Id>",
+      "Description" : "VPC Subnets to place the instances"
+    }
+  },
+  "Resources": {
+    "AgilitySecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Agility SecurityGroup",
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": {"Ref": "AllowSSHFrom"}}
+        ],
+        "VpcId" : {"Ref": "VPC"}
+      }
+    },
+    "ELBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Agility SecurityGroup",
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "CidrIp": {"Ref": "AllowHTTPFrom"}},
+          {"IpProtocol": "tcp", "FromPort": "443", "ToPort": "443", "CidrIp": {"Ref": "AllowHTTPFrom"}}
+        ],
+        "VpcId" : {"Ref": "VPC"}
+      }
+    },
+    "Ingress80": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "ELBSecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress443": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "443", "ToPort": "443", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "ELBSecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress2181": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "2181", "ToPort": "2181", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress3306": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "3306", "ToPort": "3306", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress4001": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "4001", "ToPort": "4001", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress5672": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "5672", "ToPort": "5672", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        }
+      }
+    },
+    "Ingress7001": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "7001", "ToPort": "7001", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        } 
+      }
+    },
+    "Ingress8080": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "8080", "ToPort": "8080", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        } 
+      }
+    },
+    "Ingress8443": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "AgilitySecurityGroup"}, "IpProtocol": "tcp", "FromPort": "8443", "ToPort": "8443", "SourceSecurityGroupId": {
+          "Fn::GetAtt" : [ "AgilitySecurityGroup", "GroupId" ] 
+        } 
+      }
+    },
+    "AgilityServerAutoScale": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "VPCZoneIdentifier": {"Ref" : "Subnets"},
+        "LaunchConfigurationName": {"Ref": "AgilityServerLaunchConfig"},
+        "LoadBalancerNames" : [ {"Ref": "AgilityLoadBalancer"} ],
+        "MinSize": "3",
+        "MaxSize": "12",
+        "DesiredCapacity": {"Ref": "ClusterNodes"},
+        "Tags": [
+            {"Key": "Name", "Value": { "Ref" : "AWS::StackName" }, "PropagateAtLaunch": true}
+        ]
+      }
+    },
+    "AgilityServerLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AMI" ]},
+        "InstanceType": {"Ref": "InstanceType"},
+        "KeyName": {"Ref": "KeyPair"},
+        "SecurityGroups": [{"Ref": "AgilitySecurityGroup"}],
+        "UserData" : { "Fn::Base64":
+          { "Fn::Join": [ "", [
+            "#cloud-config\n\n",
+            "write_files:\n",
+            "- path: /home/core/.dockercfg\n",
+            "  permissions: 0600\n",
+            "  owner: core\n",
+            "  content: |\n",
+            "    {\n",
+            "      \"https://index.docker.io/v1/\": {\n",
+            "        \"auth\": \"YWdpbGl0eXBsYXRmb3JtOnMzcnZpY2VtM3No\"\n",
+            "      }\n",
+            "    }\n",
+            "coreos:\n",
+            "  etcd:\n",
+            "    discovery: ", { "Ref": "DiscoveryURL" }, "\n",
+            "    addr: $", { "Ref": "AdvertisedIPAddress" }, "_ipv4:4001\n",
+            "    peer-addr: $", { "Ref": "AdvertisedIPAddress" }, "_ipv4:7001\n",
+            "  units:\n",
+            "    - name: etcd.service\n",
+            "      command: start\n",
+            "    - name: fleet.service\n",
+            "      command: start\n",
+            "    - name: agility.service\n",
+            "      command: start\n",
+            "      enable: false\n",
+            "      content: |\n",
+            "        [Unit]\n",
+            "          Description=Agility Install\n",
+            "          Requires=docker.service\n",
+            "          Requires=etcd.service\n",
+            "          Requires=fleet.service\n",
+            "          After=docker.service\n",
+            "          After=etcd.service\n",
+            "          After=fleet.service\n",
+            "\n",
+            "        [Service]\n",
+            "          Type=oneshot\n",
+            "          User=core\n",
+            "          TimeoutStartSec=0\n",
+            "          ExecStart=/usr/bin/docker run -e CLUSTER_NODES=", {"Ref": "ClusterNodes"}, " -e AGILITY_INSTANCES=", {"Ref": "AgilityInstances"}, " --name agility -v=/:/coreos agility/coreos\n"
+            ] ]
+          }
+        }
+      }
+    },
+    "AgilityLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Subnets" : { "Ref" : "Subnets" },
+        "SecurityGroups" : [ { "Ref" : "ELBSecurityGroup" } ],
+        "LBCookieStickinessPolicy" : [ { "CookieExpirationPeriod" : "3600", "PolicyName" : "agility-elb-stickiness-policy" } ],
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "Protocol" : "HTTP",
+          "InstancePort" : "80",
+          "InstanceProtocol" : "HTTP",
+          "PolicyNames" : [ "agility-elb-stickiness-policy" ]
+        },
+        {
+          "LoadBalancerPort" : "443",
+          "Protocol" : "HTTPS",
+          "InstancePort" : "443",
+          "InstanceProtocol" : "HTTPS",
+          "SSLCertificateId": {"Ref": "Certificate"},
+	  "PolicyNames" : [ "agility-elb-stickiness-policy" ]
+        } ]
+      }
+    }
+  }
+}

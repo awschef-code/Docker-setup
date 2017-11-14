@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+
+<project name="quay.io/coreos/etcd" basedir=".">
+
+   <property name="docker.machine.name" value="develop"/>
+
+   <condition property="isMacOS">
+      <os family="mac" />
+   </condition>
+
+   <target name="check-env" if="isMacOS">
+       <property environment="env"/>
+   </target>
+
+   <target name="build" depends="check-env">
+   </target>
+
+   <target name="push" depends="build">
+   </target>
+
+   <target name="deploy">
+        <exec executable="docker-compose">
+            <arg value="up" />
+            <arg value="-d" />
+        </exec>
+   </target>
+
+   <target name="clean">
+        <exec executable="docker">
+            <arg value="rm" />
+            <arg value="-f" />
+            <arg value="etcd" />
+        </exec>
+        <exec executable="docker">
+            <arg value="rmi" />
+            <arg value="-f" />
+            <arg value="${ant.project.name}" />
+        </exec>
+   </target>
+</project>

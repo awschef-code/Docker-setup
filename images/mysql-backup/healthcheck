@@ -1,0 +1,15 @@
+#!/bin/bash
+
+hostname=$(mysql -u${MYSQL_USER:-admin} -p${MYSQL_PASSWORD:-x0cloud} --socket=${MYSQL_VOLUME:-/var/lib/mysql}/mysql.sock -e "show variables like 'report_host'\G" 2>/dev/null | tail -n 1 | sed -e"s/.*Value: //")
+
+state=$(mysql -u${MYSQL_USER:-admin} -p${MYSQL_PASSWORD:-x0cloud} --socket=${MYSQL_VOLUME:-/var/lib/mysql}/mysql.sock -e "select member_state from performance_schema.replication_group_members where member_host='${hostname}'\G" 2>/dev/null | tail -n 1 | sed -e"s/.*member_state: //")
+
+curl -s http://localhost:80 > /dev/null
+apacheStatus=$?
+
+if [ "$state" == "ONLINE" ] && [ $apacheStatus -eq 0 ]
+then
+    exit 0
+else
+    exit 2
+fi;

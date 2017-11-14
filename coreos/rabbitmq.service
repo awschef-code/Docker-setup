@@ -1,0 +1,16 @@
+[Unit]
+Description=RabbitMQ
+Requires=etcd.service
+Requires=docker.service
+After=docker.service
+After=etcd.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill rabbitmq
+ExecStartPre=-/usr/bin/docker rm rabbitmq
+ExecStartPre=/bin/sh -c "until (umask 222; echo rabbitmq >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/rabbitmq; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name rabbitmq --publish=4369:4369 --publish=5672:5672 --publish=25672:25672 dockerhub.servicemesh.com/agility/rabbitmq
+ExecStop=/usr/bin/docker stop rabbitmq
+Restart=on-failure

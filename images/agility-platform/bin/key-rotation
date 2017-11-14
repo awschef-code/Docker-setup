@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# A wrapper for ServiceMesh's key rotation tool "Key Rotation".
+
+# Globals
+bname="${0##*/}"
+key_files="com.servicemesh.agility.key.rotation.misc.cfg keys.jceks"
+
+if [[ (-z $AGILITY_HOME) && (-n $BUILD_HOME) ]]
+then
+    # Allow the Key Rotation tool to be run directly from a build tree by
+    # setting BUILD_HOME only.  In this case AGILITY_HOME points to where the
+    # jars can be found, but -a will be used to point to the location where the
+    # configuration files can be found.
+    if [[ ! -d $BUILD_HOME ]]
+    then
+        echo "AGILITY_HOME is not set and BUILD_HOME is not set to a \
+directory that exists." 1>&2
+        exit 1
+    fi
+    export AGILITY_HOME="$BUILD_HOME/tools"
+    # The args are prepended with -a so that the user may override it.
+    set -- "-a" "$BUILD_HOME/karaf" "$@"
+else
+    if [[ $(id -nu) != smadmin ]]
+    then
+        echo "This command may only be run as user smadmin."
+        exit 1
+    fi
+fi
+
+if [[ -z $AGILITY_HOME ]]
+then
+    export AGILITY_HOME="/opt/agility-platform"
+fi
+
+if [[ ! -d $AGILITY_HOME ]]
+then
+    echo "The AGILITY_HOME environment variable must be set to a directory \
+that exists." 1>&2
+    exit 1
+fi
+
+if ! java -version &> /dev/null
+then
+    echo "Executable \"java\" must be in the path.  Make sure the Java \
+environment is sourced." 1>&2
+    exit 1
+fi
+
+tools="$AGILITY_HOME/tools"
+if [[ ! -d $tools ]]
+then
+    echo "The tools directory \"$tools\" does not exist." 1>&2
+    exit 1
+fi
+
+unset jars sep
+for jar in $tools/lib/*.jar $tools/com.servicemesh.agility.key.rotation-*.jar
+do
+    jars="$jars$sep$jar"
+    sep=":"
+done
+
+# Invoke the key rotation tool.
+java -cp "$jars" "-Dkaraf.home=${AGILITY_HOME}" com.servicemesh.agility.keyrotation.KeyRotation "$@"
+exitCode=$?
+
+# Make sure that any files created or updated have secure permissions.
+for key_file in $key_files
+do
+    key_etc="$AGILITY_HOME/etc/$key_file"
+    if [[ -f $key_etc ]] && ! chmod 600 "$key_etc"
+    then
+        echo "Unable to set permissions on \"$key_etc\"."
+        exit 1
+    fi
+done
+
+exit $exitCode

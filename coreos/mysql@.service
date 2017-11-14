@@ -1,0 +1,20 @@
+[Unit]
+Description=MySQL
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill mysql-%i 2>/dev/null
+ExecStartPre=-/usr/bin/docker rm mysql-%i 2>/dev/null
+ExecStartPre=/bin/sh -c "until (umask 222; echo mysql >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/mysql:5.7; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name mysql-%i -e MYSQL_SERVER_ID=%i --publish=3306:3306 dockerhub.servicemesh.com/agility/mysql:5.7
+ExecStop=/usr/bin/docker stop mysql-%i
+Restart=on-failure
+
+
+[X-Fleet]
+Conflicts=mysql@*.service

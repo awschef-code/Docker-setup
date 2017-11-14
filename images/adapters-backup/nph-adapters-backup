@@ -1,0 +1,15 @@
+#!/bin/bash 
+
+source /usr/lib/cgi-bin/common/downloadFunctions.sh
+
+if [ ! -s "$BACKUP_FILE_NAME" ]
+then
+  downloadBackup "Web Call"
+fi
+
+printf "HTTP/1.1 200 OK\n"
+printf "Date: " $(date)
+printf "Server: Apache/2.4.25 (Unix)\n"
+printf "Content-Type: application/zip; filename\n"
+printf "Content-Disposition: attachment;\n\n"
+cat $BACKUP_FILE_NAME

@@ -1,0 +1,23 @@
+[Unit]
+Description=Agility
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill agility
+ExecStartPre=-/usr/bin/docker rm agility
+ExecStartPre=/bin/sh -c '/usr/bin/etcdctl get /services/mysql; while [ $? != 0 ]; do /usr/bin/etcdctl get /services/mysql; sleep 10; done'
+ExecStartPre=/bin/sh -c '/usr/bin/etcdctl get /services/rabbitmq; while [ $? != 0 ]; do /usr/bin/etcdctl get /services/rabbitmq; sleep 10; done'
+ExecStartPre=/bin/sh -c '/usr/bin/etcdctl get /services/zookeeper; while [ $? != 0 ]; do /usr/bin/etcdctl get /services/zookeeper; sleep 10; done'
+ExecStartPre=/bin/sh -c "until (umask 222; echo agility >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull dockerhub.servicemesh.com/agility/platform; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name agility -e MYSQL_FABRIC=true -e DOCKER_IP=${COREOS_PRIVATE_IPV4} --publish=8080:8080 --publish=8443:8443 dockerhub.servicemesh.com/agility/platform
+ExecStop=/usr/bin/docker stop agility
+Restart=on-failure
+
+[X-Fleet]
+Conflicts=agility@*.service

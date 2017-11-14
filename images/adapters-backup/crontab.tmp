@@ -1,0 +1,3 @@
+TZ=<TZ>
+*/CRON_JOB_DELAY * * * * /usr/lib/cgi-bin/download-backup.sh 2>&1 /tmp/cronlog.log
+59 23 * * * /usr/lib/cgi-bin/rotate-logs.sh 2>&1 /tmp/cronlog.log

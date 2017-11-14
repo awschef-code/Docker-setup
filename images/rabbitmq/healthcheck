@@ -1,0 +1,22 @@
+#!/bin/bash
+
+source ./common/utilFunctions.sh
+source ./rabbitFunctions.sh
+
+skipCheckFile="/tmp/skipRealHealthCheck"
+statusCheckFile="/tmp/statusCheck"
+if [ -f $skipCheckFile ]
+then
+  echo "Setting up Cluster"
+  exit 0
+else
+  if [ `areAllNodesInOneCluster` -ne 0 ]
+  then
+    echo ""
+    echo "Couldn't find all expected nodes in RabbitMQ cluster. Actual nodes: `getRabbitClusterNodes` ; Expected nodes: `getNodesFromRabbitTasks`"
+    exit 1
+  else
+    echo "Found All Nodes in cluster. "
+    exit 0
+  fi
+fi

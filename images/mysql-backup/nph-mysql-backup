@@ -1,0 +1,11 @@
+#!/bin/bash -eEu
+
+BASE_DIR=${MYSQL_BACKUP_VOLUME:-/var/lib/mysql-backup}
+
+BACKUP_DIR=${BASE_DIR}/backup-$(date +%s)
+
+printf "HTTP/1.1 200 OK\n"
+printf "Date: " $(date)
+printf "Server: Apache/2.4.25 (Unix)\n"
+printf "Content-Type: application/octet-stream\n\n"
+mysqlbackup -u${MYSQL_USER:-admin} -p${MYSQL_PASSWORD:-x0cloud} --socket=${MYSQL_VOLUME:-/var/lib/mysql}/mysql.sock --backup-image=- --backup-dir=$BACKUP_DIR --compress backup-to-image

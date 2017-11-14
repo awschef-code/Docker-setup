@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# set a flag to cause an entire pipeline to fail if any part fails
+set -o pipefail
+
+# the value is set as a constant in the collectd and telegraf Listerner.java files
+UDP_MSG="HEALTH-CHECK"
+
+# make sure the collectd listener is listening on port 8649
+collectd=`echo $UDP_MSG | nc -v -u -w 3 localhost 8649 2>&1 |grep open`
+
+if [[ -z "$collectd" ]]
+then
+    echo "ERROR: the collectd port 8649 is not listening"
+    exit 1
+fi
+
+# make sure the telegraf listener is listening on port 8099
+telegraf=`echo $UDP_MSG | nc -v -u -w 3 localhost 8099 2>&1 |grep open`
+
+if [[ -z "$telegraf" ]]
+then
+    echo "ERROR: the telegraf port 8099 is not listening"
+    exit 1
+fi
+
+# make sure the collectd listener bundle is running
+collectdBundle=`/opt/agility-platform/bin/client list | grep "Agility - Collectd Adapter" | grep Active | wc -l`
+
+if [[ $collectdBundle -ne 1 ]]
+then
+    echo "ERROR: the collectd listener bundle is not Active"
+    exit 1
+fi
+
+# make sure the telegraf listener bundle is running
+telegrafBundle=`/opt/agility-platform/bin/client list |grep "Agility - Telegraf Adapter" | grep Active | wc -l`
+
+if [[ $telegrafBundle -ne 1 ]]
+then
+    echo "ERROR: the telegraf listener bundle is not Active"
+    exit 1
+fi  
+
+# get the mysql info from the configuration file
+AGILITY_HOME="/opt/agility-platform"
+CONFIG_FILE="$AGILITY_HOME/etc/com.servicemesh.agility.database.cfg"
+MYSQL_USER=`grep dbUser $CONFIG_FILE | sed -e "s/.*=//g"`
+MYSQL_PASSWD=`grep dbPasswd $CONFIG_FILE | sed -e "s/.*=//g"`
+
+# this can be removed if the database container can be reached using a host name value, e.g. mysql
+MYSQL_HOST=`grep dbUrl $CONFIG_FILE | cut -d':' -f3 | cut -d'/' -f3`
+
+# make sure mysql can connect to the metric database and data retrieved
+SQL_STMT="select count(*) from MetricGroup; commit;"
+
+SQL_RESULTS=`mysql --batch -u"$MYSQL_USER" -p"$MYSQL_PASSWD" -h $MYSQL_HOST metric -e "$SQL_STMT" | sed -e 's/\t/,/g'`
+CMD_STATUS=$?
+
+if [[ "$CMD_STATUS" -ne "0" ]]
+then
+    echo "ERROR: the metric database test failed"
+    exit 1
+fi
+
+if [[ -z "SQL_RESULTS" ]]
+then
+   echo "ERROR: the metric database query [$SQL_STMT] did not return any results"
+   exit 1
+fi
+
+CUR_IFS=$IFS
+IFS=$'\n'
+
+# there should only be two rows
+isHeader=1
+for row in $SQL_RESULTS
+do
+    if [[ $isHeader -eq 1 ]]
+    then
+        ifHeader=0
+    else
+        if [[ $row -le 0 ]]
+        then
+            echo "ERROR: no rows were found in the MetricGroup table.  This implies the database is not configured properly."
+            exit 1
+        fi
+    fi
+done
+
+IFS=$CUR_IFS
+
+exit 0

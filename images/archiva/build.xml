@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+
+<project name="agility/archiva" basedir=".">
+
+   <property environment="my_env" />
+   <property name="agility_binaries_archiva_vol" value="/var/archiva/repositories/agility" />
+   <property name="agility_binaries_extensions_vol" value="/var/archiva/repositories/extensions" />
+
+   <property name="tag.version" value="11.0.1-SNAPSHOT" />
+
+   <target name="clean" >
+       <delete dir="agility" />
+       <delete dir="target" />
+       <exec executable="docker">
+           <arg value="rm" />
+           <arg value="-f" />
+           <arg value="dockerhub.servicemesh.com/${ant.project.name}:${tag.version}"/>
+       </exec>
+       <exec executable="docker">
+           <arg value="rmi" />
+           <arg value="-f" />
+           <arg value="dockerhub.servicemesh.com/${ant.project.name}:${tag.version}"/>
+       </exec>
+       <delete dir="common"/>
+   </target>
+
+   <target name="init" depends="clean" description="Fetch agility binaries from archiva and generate git build info">
+      <exec executable="/bin/bash" outputproperty="archiva.container">
+        <arg value='-c' />
+        <arg value="docker ps | grep archiva | head -1 | awk  '{print $1}'"/>
+      </exec>
+      <exec executable="docker" failonerror="true">
+        <arg value="cp" />
+        <arg value="${archiva.container}:${agility_binaries_archiva_vol}" />
+        <arg value="." />
+      </exec>
+      <exec executable="docker" failonerror="true">
+        <arg value="cp" />
+        <arg value="${archiva.container}:${agility_binaries_extensions_vol}" />
+        <arg value="." />
+      </exec>
+       <exec executable="/bin/sh" outputproperty="version.incremental" failifexecutionfails="true">
+           <arg value="-c"/>
+           <arg value="numrevs=`git rev-list HEAD | wc -l`; commit=`git log -n1 --pretty=format:%h HEAD`; echo $numrevs-$commit;"/>
+       </exec>
+       <echo message="rev is: ${version.incremental}"/>
+       <exec executable="/bin/sh" outputproperty="git.branch" failifexecutionfails="true">
+           <arg value="-c"/>
+           <arg value="git describe --all | sed 's/.*\///'"/>
+       </exec>
+       <echo message="branch is: ${git.branch}"/>
+   </target>
+
+   <target name="build" depends="init, javacompile" description="build image" >
+        <copy todir="common">
+            <fileset dir="../common" />
+        </copy>
+        <exec executable="docker" failonerror="true">
+            <arg value="build" />
+            <arg value="-t=${ant.project.name}:${tag.version}"/>
+            <arg value="." />
+        </exec>
+        <exec executable="docker" failonerror="true">
+            <arg value="tag" />
+            <arg value="${ant.project.name}:${tag.version}"/>
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}:${tag.version}"/>
+        </exec>
+
+   </target>
+
+   <target name="push" depends="clean, init, build" description="Push image to dockerhub.servicemesh.com" >
+        <exec executable="docker" failonerror="true">
+            <arg value="push" />
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}:${tag.version}" />
+        </exec>
+   </target>
+
+   <path id="compile.classpath">
+      <fileset dir="${my_env.JAVA_HOME}">
+        <include name="**/*.jar"/>
+      </fileset>
+   </path>
+   <target name="javacompile">
+     <mkdir dir="target"/>
+      <javac srcdir="." destdir="target" includeantruntime="false">
+        <classpath>
+           <path refid="compile.classpath"/>
+        </classpath>
+      </javac>
+   </target>
+
+</project>

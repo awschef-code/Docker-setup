@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+
+<project name="agility/zookeeper:1.0" basedir=".">
+
+   <condition property="isMacOS">
+      <os family="mac" />
+   </condition>
+
+   <target name="check-env" if="isMacOS">
+       <property environment="env"/>
+   </target>
+
+   <target name="init">
+       <exec executable="/bin/sh" outputproperty="version.incremental" failifexecutionfails="true">
+           <arg value="-c"/>
+           <arg value="numrevs=`git rev-list HEAD | wc -l`; commit=`git log -n1 --pretty=format:%h HEAD`; echo $numrevs-$commit;"/>
+       </exec>
+       <echo message="rev is: ${version.incremental}"/>
+       <exec executable="/bin/sh" outputproperty="git.branch" failifexecutionfails="true">
+           <arg value="-c"/>
+           <arg value="branch=`git describe --all | sed -n 's/remotes\/origin\///p' | sed 's/-.*$//'`; echo $branch;"/>
+       </exec>
+       <echo message="branch is: ${git.branch}"/>
+   </target>
+
+   <target name="clean">
+        <exec executable="docker">
+            <arg value="rm" />
+            <arg value="-f" />
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}"/>
+        </exec>
+        <exec executable="docker">
+            <arg value="rmi" />
+            <arg value="-f" />
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}"/>
+        </exec>
+   </target>
+
+   <target name="build" depends="clean" description="build image" >
+        <exec executable="docker" failonerror="true">
+            <arg value="build" />
+            <arg value="-t=${ant.project.name}"/>
+            <arg value="." />
+        </exec>
+        <exec executable="docker" failonerror="true">
+            <arg value="tag" />
+            <arg value="${ant.project.name}"/>
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}"/>
+        </exec>
+   </target>
+        
+   <target name="push" depends="clean, init, build" description="Push image to dockerhub.servicemesh.com" >
+        <exec executable="docker" failonerror="true">
+            <arg value="push" />
+            <arg value="dockerhub.servicemesh.com/${ant.project.name}" />
+        </exec>
+   </target>
+	
+   <target name="deploy" depends="build">
+        <exec executable="docker-compose">
+            <arg value="up" />
+            <arg value="-d" />
+        </exec>
+   </target>
+
+</project>

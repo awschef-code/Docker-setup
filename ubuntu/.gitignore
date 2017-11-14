@@ -1,0 +1,7 @@
+*.crt
+*.csr
+*.pem
+*.srl
+extfile.cnf
+erlang.cookie
+hosts

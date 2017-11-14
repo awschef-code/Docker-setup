@@ -1,0 +1,25 @@
+<ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra">
+  <info organisation="com.servicemesh.agility" module="${ant.project.name}" />
+  <configurations defaultconfmapping="cloudplugin->default">
+    <conf name="default" transitive="false"/>
+    <conf name="cloudplugin" transitive="false"/>
+  </configurations>
+
+  <publications defaultconf="default">
+  </publications>
+
+  <dependencies>
+
+      <!-- CloudPlugin 3rd-party dependenciesn -->
+      <dependency org="com.servicemesh" name="com.servicemesh.agility.ui.extension.dependency" 
+           rev="${cloudplugin_extension.version}" 
+           conf="cloudplugin" 
+           transitive="false" 
+           changing="true"
+      >
+           <artifact name="com.servicemesh.agility.ui.extension.dependency" type="enterprise" ext="kar" />
+      </dependency>
+
+  </dependencies>
+
+</ivy-module>

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+#
+# Try a R/W transaction on port 6446
+#
+
+mysql "-u${MYSQL_ROOT_USER}" "-p${MYSQL_ROOT_PASSWORD}" -P 6446 -h 127.0.0.1 -e "SELECT 1;" 2>&1 >/dev/null | grep -v "can be insecure"
+rc=${PIPESTATUS[0]}
+if [ "$rc" -ne 0 ] 
+then
+    exit 1
+fi
+
+exit 0

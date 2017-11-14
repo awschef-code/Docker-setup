@@ -1,0 +1,73 @@
+#!/bin/bash -eEu
+
+function validateComposerVersion() {
+    local ver=$1
+    local verArr=(${ver//./ })
+    if [ ${verArr[0]} -ne 1 ] 
+    then
+      echo "1"
+      return
+    fi
+
+    if [ ${verArr[1]} -lt 8 ] 
+    then
+      echo "1"
+      return
+    fi
+    echo "0"
+}
+
+function getComposerVersion() {
+    local ver=$(docker-compose -v)
+    ver=`echo $ver  | cut -d" " -f3 | cut -d, -f1`
+    echo $ver
+}
+
+
+########################
+# Primary entry point
+########################
+
+function assertComposerVersion() {
+  local ver=$(getComposerVersion)
+  local res=$(validateComposerVersion $ver)
+  if [ $res -ne 0 ] 
+  then
+    echo "Unsupported docker-compose version $ver"
+    echo "Version 1.8.0 or later is required."
+    exit 1
+  fi
+}
+
+
+#####################################
+# Unit Tests
+#####################################
+
+function composerVersionTest() {
+  local ver=$1
+  local expected=$2
+  echo -n "Checking version $ver"
+  res=$(validateComposerVersion $ver)
+  if [ $res -eq $expected ] 
+  then
+    echo "   Passed!"
+  else
+    echo "   Failed!"
+  fi
+}
+
+function composerTestSuite() {
+    composerVersionTest "0.8.0"   "1"
+    composerVersionTest "1.7.0"   "1"
+    composerVersionTest "1.7.9"   "1"
+    composerVersionTest "1.8.0"   "0"
+    composerVersionTest "1.8.1"   "0"
+    composerVersionTest "1.9.0"   "0"
+    composerVersionTest "1.9.9"   "0"
+    composerVersionTest "2.0.0"   "1"
+    composerVersionTest "2.8.0"   "1"
+}
+
+#composerTestSuite
+

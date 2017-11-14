@@ -1,0 +1,102 @@
+#!/bin/bash -eEu
+
+usage() 
+{
+  echo "Purpose:"
+  echo "  A wrapper shell around docker-compose."
+  echo "  Sets required environment variables before "
+  echo "  invoking docker-compose, and passes all"
+  echo "  arguments to docker-compose."
+  echo 
+  echo "  Always uses the docker-compose.yml located in"
+  echo "  the same directory as this script."
+  echo 
+  echo "Usage:"
+  echo "    "`basename $0` "<docker-compose arguments>"
+  echo 
+}
+
+#######################################
+###########  MAIN #####################
+#######################################
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [[ $# -eq 0 ]] 
+then
+    usage >&2
+    exit 1
+fi
+
+cd "$DIR"
+
+#************************************
+# Set DOCKER_MODE if not already set
+#************************************
+
+if [ -z "${DOCKER_MODE:-}" ] 
+then
+    if [ "$(uname)" = "Linux" ] 
+    then
+        DOCKER_MODE=native
+    else
+        if [ "$(uname)" = "Darwin" ] 
+        then
+            if [ -z "${DOCKER_HOST:-}" ]
+            then
+                echo "ERROR: DOCKER_HOST not defined."
+                exit 1
+            fi
+
+            if [ -z "${DOCKER_MACHINE_NAME:-}" ]
+            then
+                echo "ERROR: DOCKER_MACHINE_NAME not defined."
+                exit 1
+            fi
+
+            DOCKER_MODE=hosted
+            hostname=`echo $DOCKER_HOST | sed -e "s/tcp:..//" -e"s/:.*//"`
+            dockerMachineExec=`which docker-machine`
+            if [ "$?" = "0" ] 
+            then
+               set +e
+               machineStatus=$(docker-machine status $DOCKER_MACHINE_NAME 2>&1)
+               set -e
+               if [ "$machineStatus" != "Running" ] 
+               then
+                   echo "ERROR: Docker machine $DOCKER_MACHINE_NAME is not running -- $machineStatus"
+                   exit 1
+               fi
+            else
+                echo "ERROR: No docker-machine executable found"
+                exit 1
+            fi
+        fi
+    fi 
+fi
+
+
+#*******************
+# Set DOCKER_IP
+#*******************
+
+if [ "$DOCKER_MODE" = "hosted" ] 
+then
+    export DOCKER_IP=$(docker-machine ip "$DOCKER_MACHINE_NAME")
+else
+    export DOCKER_IP=0.0.0.0
+fi
+
+
+#****************
+# Vdalite version
+#****************
+source ${DIR}/../utils/utilComposer
+assertComposerVersion 
+
+
+#********************************
+# Delegate to docker-compose
+#********************************
+
+docker-compose -f ${DIR}/docker-compose.yml "$@"

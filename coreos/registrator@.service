@@ -1,0 +1,21 @@
+[Unit]
+Description=Register Service Endpoints
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+User=core
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+ExecStartPre=-/usr/bin/docker kill registrator
+ExecStartPre=-/usr/bin/docker rm registrator
+ExecStartPre=/bin/sh -c "until (umask 222; echo registrator >/tmp/docker.pull) 2>/dev/null; do sleep 5; done; /usr/bin/docker pull gliderlabs/registrator; rm -f /tmp/docker.pull"
+ExecStart=/usr/bin/docker run --name registrator --net=host --volume=/var/run/docker.sock:/tmp/docker.sock gliderlabs/registrator:latest -ip ${COREOS_PRIVATE_IPV4} etcd://${COREOS_PRIVATE_IPV4}:4001/services
+
+ExecStop=/usr/bin/docker stop registrator
+Restart=on-failure
+
+[X-Fleet]
+Conflicts=registrator@*.service

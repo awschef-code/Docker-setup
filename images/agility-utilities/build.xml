@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+  <project name="agility/agility-utilities" basedir=".">
+
+    <target name="clean">
+      <delete dir="key-rotation" />
+    </target>
+
+    <target name="init" depends="clean" description="Fetch agility binaries from archiva">
+      <fail unless="agility.workspace">agility.workspace property needs to be set</fail>
+      <copy todir="key-rotation" >
+        <fileset dir="${agility.workspace}/tools/key-rotation"/>
+      </copy>
+    </target>
+
+    <target name="build" depends="clean,init" description="build image">
+      <property name="tag.version" value="11.0.0-SNAPSHOT" />
+      <exec executable="docker" failonerror="true">
+        <arg value="build" />
+        <arg value="-t=dockerhub.servicemesh.com/${ant.project.name}:${tag.version}" />
+        <arg value="." />
+      </exec>
+      <antcall target="clean" />
+    </target>
+
+    <target name="push" depends="build" description="Push image to dockerhub.servicemesh.com">
+      <exec executable="docker" failonerror="true">
+        <arg value="push" />
+        <arg value="dockerhub.servicemesh.com/${ant.project.name}:${tag.version}" />
+      </exec>
+    </target>
+  </project>

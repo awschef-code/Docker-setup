@@ -1,0 +1,6 @@
+*.pem
+*.crt
+*.csr
+*.csl
+*.srl
+*.cnf

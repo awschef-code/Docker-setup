@@ -1,0 +1,13 @@
+version: '2'
+
+services:
+
+    agility:
+        container_name: agility
+        image: agility/karaf:4.0.5
+        ports:
+            - "8022:8022"
+            - "8101:8101"
+            - "8080:8080"
+            - "8443:8443"
+

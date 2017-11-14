@@ -1,0 +1,24 @@
+version: '2'
+
+services:
+
+    mysql57:
+        container_name: mysql57
+        image: dockerhub.servicemesh.com/agility/mysql:5.7
+        ports:
+            - "3306:3306"
+
+    rabbitmq:
+        container_name: rabbitmq
+        image: dockerhub.servicemesh.com/agility/rabbitmq:latest
+        ports:
+            - "5672:5672"
+
+    zookeeper:
+        container_name: zookeeper
+        image: dockerhub.servicemesh.com/agility/zookeeper:latest
+        ports:
+            - "2181:2181"
+            - "60934:60934"
+        environment:
+            - DOCKER_IP=$DOCKER_IP

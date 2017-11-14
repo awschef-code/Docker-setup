@@ -1,0 +1,133 @@
+#cloud-config
+users:
+  - name: core
+    passwd: $1$LEfVXsiG$lhcyOrkJq02jWnEhF93IR/
+    groups:
+      - sudo
+      - docker
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
+  - name: vagrant
+    passwd: $1$LEfVXsiG$lhcyOrkJq02jWnEhF93IR/
+    groups:
+      - sudo
+      - docker
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
+  - name: root
+    passwd: $1$LEfVXsiG$lhcyOrkJq02jWnEhF93IR/
+write_files:
+- path: /home/core/.dockercfg
+  permissions: '0600'
+  owner: core
+  content: |
+    {
+      "https://index.docker.io/v1/": {
+        "auth": "YWdpbGl0eXBsYXRmb3JtOnMzcnZpY2VtM3No"
+            },
+      "corehub.servicemesh.com": {
+        "auth": "YWdpbGl0eSthdXRvYnVpbGQ6R0k2RUVPUEZXSklWU0tEUkhBNktQRFlRU1A4NUZGODhPQktVVUtFQ0FWWEJOSFRUWURDNFJWTFZMTTJZUktNUg==",
+        "email": "."
+      }
+      "dockerhub.servicemesh.com": {
+        "auth": "YWdpbGl0eS1hdXRvYnVpbGQ6R0k2RUVPUEZXSklWU0tEUkhBNktQRFlRU1A4NUZGODhPQktVVUtFQ0FWWEJOSFRUWURDNFJWTFZMTTJZUktNUg==",
+        "email": "."
+      }
+    }
+write_files:
+  - path: /home/core/configure_coreos_services_early.sh
+    permissions: 755
+    owner: root:root
+    content: |
+      #!/bin/bash
+      PRIV_IP=`ifconfig ens192 | sed -n 2p | awk '{ print $2 }'`
+      echo "PRIV_IP is: $PRIV_IP"
+      DISC_URL=##DISCOVERY_URL_PLACEHOLDER##
+      HOST=`/usr/bin/hostname`
+      echo "/etc/hosts is: " `cat /etc/hosts`
+      echo "HOST is: $HOST"
+      ETCD_TARGET_DIR="/run/systemd/system/etcd.service.d/"
+      ETCD_TARGET="$ETCD_TARGET_DIR/20-cloudinit.conf"
+      mkdir -p $ETCD_TARGET_DIR
+      echo "[Service]" > $ETCD_TARGET
+      echo "Environment=ETCD_ADDR=$PRIV_IP:4001" >> $ETCD_TARGET
+      echo "Environment=ETCD_DISCOVERY=$DISC_URL" >> $ETCD_TARGET
+      echo "Environment=ETCD_PEER_ADDR=$PRIV_IP:7001" >> $ETCD_TARGET
+      ETCD2_TARGET_DIR="/run/systemd/system/etcd2.service.d/"
+      ETCD2_TARGET="$ETCD2_TARGET_DIR/20-cloudinit.conf"
+      mkdir -p $ETCD2_TARGET_DIR
+      echo "[Service]" > $ETCD2_TARGET
+      echo "Environment=ETCD_ADVERTISE_CLIENT_URLS=http://$PRIV_IP:2379" >> $ETCD2_TARGET
+      echo "Environment=ETCD_DISCOVERY=$DISC_URL" >> $ETCD2_TARGET
+      echo "Environment=ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$PRIV_IP:2380" >> $ETCD2_TARGET
+      echo "Environment=ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379,http://0.0.0.0:4001" >> $ETCD2_TARGET
+      echo "Environment=ETCD_LISTEN_PEER_URLS=http://$PRIV_IP:2380,http://$PRIV_IP:7001" >> $ETCD2_TARGET
+      FLEET_TARGET_DIR="/run/systemd/system/fleet.service.d/"
+      FLEET_TARGET="$FLEET_TARGET_DIR/20-cloudinit.conf"
+      mkdir -p $FLEET_TARGET_DIR
+      echo "[Service]" > $FLEET_TARGET
+      echo "Environment=FLEET_PUBLIC_IP=$PRIV_IP" >> $FLEET_TARGET
+      FLANNEL_TARGET_DIR="/run/systemd/system/flanneld.service.d/"
+      FLANNEL_TARGET="$FLANNEL_TARGET_DIR/20-cloudinit.conf"
+      mkdir -p $FLANNEL_TARGET_DIR
+      echo "[Service]" > $FLANNEL_TARGET
+      echo "Environment=FLANNEL_PUBLIC_IP=$PRIV_IP" >> $FLANNEL_TARGET
+      DOCKER_TARGET_DIR="/run/systemd/system/docker.service.d/"
+      DOCKER_TARGET="$DOCKER_TARGET_DIR/20-cloudinit.conf"
+      mkdir -p $DOCKER_TARGET_DIR
+      echo "[Service]" > $DOCKER_TARGET
+      echo 'Environment="DOCKER_OPTS=--insecure-registry dockerhub.servicemesh.com"' >> $DOCKER_TARGET
+      systemctl daemon-reload
+      systemctl restart docker.service
+      echo "COREOS_PUBLIC_IPV4=$PRIV_IP" > /etc/environment
+      echo "COREOS_PRIVATE_IPV4=$PRIV_IP" >> /etc/environment
+      echo "$PRIV_IP $HOST" > /etc/hosts
+coreos:
+  units:
+  - name: conf-early.service
+    command: start
+    enable: false
+    content: |
+      [Unit]
+        Description=early configure coreos services workaround for vsphere
+        Before=etcd.service
+      [Service]
+        Type=oneshot
+        User=root
+        TimeoutStartSec=0
+        ExecStart=/home/core/configure_coreos_services_early.sh
+  - name: docker.service
+    command: start
+  - name: etcd.service
+    command: start
+  - name: fleet.service
+    command: start
+  - name: docker-tcp.socket
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=Docker Socket for the API
+      [Socket]
+      ListenStream=2375
+      Service=docker.service
+      BindIPv6Only=both
+      [Install]
+      WantedBy=sockets.target
+  - name: agility.service
+    command: start
+    enable: false
+    content: |
+      [Unit]
+        Description=Agility Install
+        Requires=docker.service
+        Requires=etcd.service
+        Requires=fleet.service
+        After=docker.service
+        After=etcd.service
+        After=fleet.service
+      [Service]
+        Type=oneshot
+        User=core
+        TimeoutStartSec=0
+        ExecStart=/usr/bin/docker run -e CLUSTER_NODES=3 -e AGILITY_INSTANCES=1 --name agility -v=/:/coreos dockerhub.servicemesh.com/agility/coreos

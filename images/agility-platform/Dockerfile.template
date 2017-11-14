@@ -1,0 +1,114 @@
+FROM dockerhub.servicemesh.com/agility/karaf:4.0.5
+
+# add mysql client and mysql enterprise backup
+USER root
+RUN	apt-get update && \
+	apt-get install -f -y libaio1 libnuma1 unzip xmlstarlet jq netcat && \
+	apt-get clean && \
+	wget http://repo.servicemesh.com:8081/artifactory/ivy-ext-release-local/mysql-common/5.7.16+commercial-1debian8_amd64/mysql-common_5.7.16+commercial-1debian8_amd64.deb && \
+	wget http://repo.servicemesh.com:8081/artifactory/ivy-ext-release-local/mysql-client/5.7.16+commercial-1debian8_amd64/mysql-client_5.7.16+commercial-1debian8_amd64.deb && \
+	wget http://repo.servicemesh.com:8081/artifactory/ivy-ext-release-local/mysql-commercial-client/5.7.16+commercial-1debian8_amd64/mysql-commercial-client_5.7.16+commercial-1debian8_amd64.deb && \
+	wget http://repo.servicemesh.com:8081/artifactory/ivy-ext-release-local/meb/4.0.3-debian8-x86-64bit/meb-4.0.3-debian8-x86-64bit.deb && \
+	dpkg -i mysql-common_5.7.16+commercial-1debian8_amd64.deb && \
+	dpkg -i mysql-commercial-client_5.7.16+commercial-1debian8_amd64.deb && \
+	dpkg -i mysql-client_5.7.16+commercial-1debian8_amd64.deb && \
+	dpkg -i meb-4.0.3-debian8-x86-64bit.deb && \
+	rm -f mysql-common_5.7.16+commercial-1debian8_amd64.deb && \
+	rm -f mysql-commercial-client_5.7.16+commercial-1debian8_amd64.deb && \
+	rm -f mysql-client_5.7.16+commercial-1debian8_amd64.deb && \
+	rm -f meb-4.0.3-debian8-x86-64bit.deb && \
+	rm -rf /var/lib/apt/lists/* && \
+	rm -rf /tmp/*
+
+RUN mkdir -p /var/lucene && chown smadmin:smadmin /var/lucene && \
+	mkdir -p /var/spool/agility && chown smadmin:smadmin /var/spool/agility && \
+	mkdir -p log && \
+	mkdir -p etc-defaults
+
+RUN rm -rf data lib/endorsed/org.apache.servicemix.specs.*  lib/boot/org.apache.servicemix.specs.* \
+           lib/endorsed/xerces*.jar etc/keys.properties
+
+ADD ivy-lib/com.servicemesh.agility.ui.extension.dependency-enterprise.kar /opt/agility-platform/cloudplugin-deps.kar
+
+# Download karaf artifacts needed by agility
+ADD init-system.sh init-system.sh
+RUN chmod 755 init-system.sh && /bin/sh init-system.sh && rm -f init-system.sh && \
+    cp -r etc/* etc-defaults/ && rm -rf etc/* && chown -R smadmin:smadmin /opt/agility-platform
+
+# customized bundle jar. Mbean changes to return back more data. Remove the customized jar once we move to karaf 4.0.7 or higher
+ADD karaf_mods/org.apache.karaf.bundle.core-4.0.5.jar system/org/apache/karaf/bundle/org.apache.karaf.bundle.core/4.0.5/org.apache.karaf.bundle.core-4.0.5.jar
+
+# customize karaf config
+ADD	etc/	etc-defaults/
+ADD   noreplacefiles.txt noreplacefiles.txt
+
+# copy over agility components
+ADD .keystore	etc-defaults/.keystore
+ADD	bin/	bin/
+
+# install newer version of curl for diagnostics script
+RUN sed -i 's/jessie/stretch/g' /etc/apt/sources.list && \
+	 apt-get update && \
+	 apt-get -y install curl && \
+	 sed -i 's/stretch/jessie/g' /etc/apt/sources.list && \
+	 rm -rf /var/lib/apt/lists/*
+
+COPY healthcheck /
+
+ADD wait_for_service.sh /opt/agility-platform/wait_for_service.sh
+ADD entrypoint.sh /opt/agility-platform/entrypoint.sh
+
+RUN chmod 755 /opt/agility-platform/wait_for_service.sh && chmod 755 /opt/agility-platform/entrypoint.sh && \
+    chown -R smadmin:smadmin /healthcheck && chmod 755 /healthcheck && \
+	 chown smadmin:smadmin /opt/agility-platform/wait_for_service.sh && \
+	 chown smadmin:smadmin /opt/agility-platform/entrypoint.sh && \
+	 chown smadmin:smadmin /opt/agility-platform/system/org/apache/karaf/bundle/org.apache.karaf.bundle.core/4.0.5/org.apache.karaf.bundle.core-4.0.5.jar && \
+	 chown -R smadmin:smadmin /opt/agility-platform/bin && \
+	 chown -R smadmin:smadmin /opt/agility-platform/etc-defaults && \
+	 chown smadmin:smadmin /opt/agility-platform/noreplacefiles.txt
+
+USER smadmin
+
+ENV     AGILITY_HOME /opt/agility-platform
+ENV     JAVA_OPTS "-Xms512m -Xmx4G -XX:MaxPermSize=512m -noverify"
+
+# expose port 8099 for telegraf listener
+EXPOSE 8080 8443 5005 8022 8649/udp 2187 8099/udp 5701
+
+### start: install InfluxData - Telegraf agent
+USER root
+
+#
+# copy Agility verion of telegraf to container
+#
+RUN wget --quiet --no-check-certificate --output-document=/tmp/telegraf.tar.gz https://dl.influxdata.com/telegraf/releases/telegraf-1.3.0_linux_amd64.tar.gz && \
+    cd /opt && \
+    tar -xzf /tmp/telegraf.tar.gz && \
+    chmod 777 /opt/telegraf/var/log && \
+    mv /opt/telegraf/etc/telegraf/telegraf.conf /opt/telegraf/etc/telegraf/telegraf.conf.release && \
+    rm -rf /opt/telegraf/var/log/telegraf && \
+    rm -f /tmp/telegraf.tar.gz
+
+ENV PATH $PATH:/opt/telegraf/usr/bin
+ENV TELEGRAF_CONFIG_PATH /opt/telegraf/etc/agility-telegraf.conf
+
+COPY agility-telegraf.conf /opt/telegraf/etc/agility-telegraf.conf
+
+# copy the telegraf start script
+COPY start_telegraf.sh /opt/telegraf/usr/bin/start_telegraf.sh
+
+# copy the telegraf stop script
+COPY stop_telegraf.sh /opt/telegraf/usr/bin/stop_telegraf.sh
+
+# make sure everyone can write to the log directory
+RUN chmod 755 /opt/telegraf/usr/bin/start_telegraf.sh && \
+    chmod 755 /opt/telegraf/usr/bin/stop_telegraf.sh
+
+### end: install InfluxData - Telegraf agent
+
+USER smadmin
+
+HEALTHCHECK --interval=20s --timeout=30s --retries=300 CMD /healthcheck
+
+ENTRYPOINT ["/opt/agility-platform/entrypoint.sh"]
+CMD        ["/opt/agility-platform/bin/karaf", "server_debug"]

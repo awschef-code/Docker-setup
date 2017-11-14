@@ -1,0 +1,30 @@
+#/bin/sh
+
+unset JAVA_OPTS
+NUM_HELPER_THREADS=8
+MANDATORY_JAVA_OPTS="-noverify -Dc3p0.numHelperThreads=$NUM_HELPER_THREADS -Djava.security.egd=file:/dev/./urandom -Xms$JAVA_MIN_MEM -Xmx$JAVA_MAX_MEM -XX:MaxNewSize=1G -XX:NewRatio=1 -XX:ParallelGCThreads=8 -XX:+UseConcMarkSweepGC "
+
+expectedJvmVersionCheck()  {
+
+    EXPECTED_VER="1.8.0"
+    RAW_VER=`java -version 2>&1  | awk '/java version/ {print $3}' | sed  -e 's/\"//g'`
+    VER=`echo $RAW_VER | grep "^$EXPECTED_VER"`
+    if [ $? -ne 0 ] ; then
+      die "Unsupported Java version: $RAW_VER.  Make sure that the Java version is 1.8"
+    fi
+
+    microVersion=`echo $RAW_VER | awk -F _ '{print $2}'`
+    if [ -z "$microVersion" ] ; then
+      die  "No micro version found in Java version $RAW_VER"
+    fi
+
+    #
+    # require at least $MIN_MICRO
+    #
+    MIN_MICRO=101
+    if [  "$microVersion" -lt "$MIN_MICRO" ] ; then
+      die "Micro version $microVersion of $RAW_VER is less than $MIN_MICRO"
+    fi
+    
+}
+

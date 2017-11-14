@@ -1,0 +1,6 @@
+#!/bin/bash -eEu
+DIRNAME=`dirname $0`
+
+$DIRNAME/scripts/compose up -d mysql57
+$DIRNAME/scripts/compose up -d zookeeper
+$DIRNAME/scripts/compose up -d rabbitmq
